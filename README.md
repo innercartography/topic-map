@@ -42,7 +42,7 @@ About 30 minutes of setup. Exports can take a few hours to arrive, so request th
 1. **Request your exports.**
    - **ChatGPT:** Settings → Data controls → Export data. The email link expires after 24 hours, so download it promptly.
    - **Claude:** Settings → Privacy → Export data.
-   - **Gemini (optional):** go to [takeout.google.com](https://takeout.google.com), click **Deselect all**, tick **My Activity**, choose only **Gemini Apps** under the activity data, and set the format to **JSON**.
+   - **Gemini (optional):** go to [takeout.google.com](https://takeout.google.com), click **Deselect all**, tick **My Activity**, choose only **Gemini Apps** under the activity data, and set the format to **JSON** (if it arrives as HTML anyway, that works too).
 2. **Check your computer.** The private reading step runs an AI model on your own machine. That works best with a graphics card that has about 12 GB of memory, or an Apple-silicon Mac with 16 GB or more. Keep about 15 GB of disk space free. (No suitable machine? See [Cost and privacy](#cost-and-privacy).)
 3. **Install three things.**
    - **Python 3.11 or newer** from [python.org](https://www.python.org/downloads/). On Windows, tick *Add Python to PATH* during install. Check it worked by typing `python --version` in a terminal.
@@ -66,26 +66,34 @@ Claude Code will ask permission before running commands or creating files. That'
 ```text
 Build me a personal "Topic Map": a local tool that reads my AI chat exports and shows me the topics I keep
 circling, how they change over time, and the deeper themes underneath. The exports are the zip files in ./inbox
-(ChatGPT, Claude, maybe Gemini). Build the whole thing end to end in this folder. Work on your own and only stop
-at the two checkpoints marked ⏸.
+(ChatGPT, Claude, maybe Gemini); their names don't say which is which. Build the whole thing end to end in this
+folder. Work on your own and only stop at the two checkpoints marked ⏸.
 
 GROUND RULES
 - Plain Python and plain HTML/JS. No frameworks, no build step, no database server (SQLite is fine).
-- Everything stays on this computer. The viewer is a small local server on 127.0.0.1:8765.
+- Everything stays on this computer. The viewer is a small local server on 127.0.0.1:8765. If that port is busy,
+  say so and use another (`serve --port`). On Windows, turn off HTTPServer's allow_reuse_address, or a second
+  server silently shares the busy port.
 - Reading conversations: use the local Ollama model qwen3:14b (http://127.0.0.1:11434, JSON output via a schema
-  in the "format" field). Full conversations never leave this machine.
+  in the "format" field, thinking off with "think": false). Full conversations never leave this machine.
 - Judgement work (naming topics, finding the deeper themes): do it yourself in this Claude Code session, from
-  compact files you generate (labels, counts, short sample quotes). Never call a paid API.
+  compact files you generate (labels, counts, short sample quotes). Never call a paid API. You do this once; after
+  that `all` must run without you: new labels go to the closest existing topic (listed in topics.json for me to
+  check) and new topics to the closest theme.
 - Each step is a command, `python -m topicmap <step>`, is resumable, and caches its results, so re-running skips
   finished work. Add `python -m topicmap all` to run the chain, so I can update the map when I add new exports.
 - Write a README that explains every step, which model it uses, and how to update.
 
 STEPS
 1. ingest: unzip and parse every export into data/threads.jsonl (id, source, title, start and last-update time,
-   and messages with role me/ai, time, text). ChatGPT's conversations.json is a tree ("mapping"): follow the branch
-   that ends at current_node. Claude's conversations.json lists chat_messages (sender human/assistant). Gemini's
-   Takeout "My Activity" JSON has one entry per prompt and no conversation ids: group entries less than 30 minutes
-   apart into one conversation. Skip empty conversations. Print counts per source.
+   and messages with role me/ai, time, text). Recognise each source by its content, not its file name: ChatGPT
+   and Claude both ship a conversations.json. ChatGPT's is a tree ("mapping"): follow the branch that ends at
+   current_node, keep only the text parts of user and assistant messages, and skip hidden messages and custom
+   instructions (content_type user_editable_context). Claude's lists chat_messages (sender human/assistant); the
+   words are in "text" or, in newer exports, in the text blocks of "content". Gemini's Takeout "My Activity"
+   (MyActivity.json, or MyActivity.html if it arrived as HTML) has one entry per prompt and no conversation ids:
+   keep entries whose title starts with "Prompted", and group entries less than 30 minutes apart into one
+   conversation. Skip empty conversations. Print counts per source.
 2. index: a SQLite FTS5 index of every message, plus `python -m topicmap search "phrase"`.
 3. extract: for each conversation, ask the local model for MY ideas only, not the AI's. Each idea has a type
    (question, claim, idea, plan, worry, insight, desire, decision), 1–3 short labels, a weight from 1 to 3, and a
@@ -95,7 +103,8 @@ STEPS
    ⏸ CHECKPOINT 1: run extract on 10 conversations. Show me 10 sample ideas with their quotes, the share of quotes
    verified, and the seconds per conversation, and estimate the full run time. After my OK, start the full run in
    the background, tell me it can be stopped and resumed, and keep building the rest with the ideas found so far.
-4. topics: fold the labels into 80–150 topics. Merge near-duplicate labels in Python first, then you name the
+4. topics: fold the labels into topics: 80–150 for an archive of 1,000+ conversations, fewer for a small one
+   (roughly one per 4–6 distinct labels). Merge near-duplicate labels in Python first, then you name the
    topics: one emoji each, a 1–4 word name, and a one-line essence written to me ("you…"). Save data/topics.json
    with a label → topic map that I can hand-edit.
 5. analyze: plain statistics per topic: idea count, first and last date, span, active weeks, "returns" (coming
@@ -106,6 +115,7 @@ STEPS
    what persists underneath the changing topics. Each gets a name, an emoji, a one-sentence essence, the open
    question it keeps asking, its topics, and 2–4 claims that cite idea ids. Most topics won't be named by any
    theme: file each one under the theme whose topics it shares the most conversations with, marked "inferred".
+   A topic that shares no conversation with any theme goes under a "Loose threads" group rather than a guess.
 7. hierarchy: plain Python, writes data/hierarchy.json, a tree me → themes → topics → each topic's top labels →
    2 best ideas per label. Add cross-links: co-occurrence, and "unexpected" links, which are pairs of topics that
    share an unusually large share of their conversations but sit under different themes (at most 3 per topic).
@@ -114,7 +124,7 @@ STEPS
 THE VIEWER (`python -m topicmap serve`, dark theme)
 - / : a main page with a constellation of topic emoji sized by idea count (recurring topics get a gold ring), a
   returns grid (topics × weeks, gold dot = came back after a break), a searchable ideas list, and a conversation
-  reader. Window buttons: all time / 12 weeks / 4 weeks.
+  reader. Window buttons: all time / 12 weeks / 4 weeks, counted back from my latest conversation, not today.
 - /disk : the centrepiece, a Poincaré-disk view of the hierarchy (canvas + d3 v7 from cdnjs).
   · Each theme gets a sector around me. Pack its topics biggest first (size = ideas × span), each taking the free
     spot nearest the centre, so the big long-lived topics hold the middle. Below the topics, lay out a hyperbolic
@@ -143,7 +153,7 @@ When it's done, open the map any time with:
 python -m topicmap serve
 ```
 
-Then go to <http://127.0.0.1:8765/disk>. To update it later, export again, drop the new zips in `inbox`, and run `python -m topicmap all`; only new conversations are read. Rename topics or change their emoji in `data/topics.json`, and your edits survive rebuilds.
+Then go to <http://127.0.0.1:8765/disk>. To update it later, export again, drop the new zips in `inbox`, and run `python -m topicmap all`; only new conversations are read. New labels are filed under your existing topics automatically and listed under `new_labels` in `data/topics.json`, so you can check them. Rename topics, change their emoji or move a label there, and your edits survive rebuilds.
 
 ## Part 3 · Poincaré disk assembly (advanced)
 
@@ -177,10 +187,11 @@ How the layout works:
 ## Troubleshooting
 
 - **The map page won't load ("can't connect").** The server isn't running. Run `python -m topicmap serve` in your `topic-map` folder and keep that terminal open.
+- **"Port 8765 is already in use", or the map shows old data.** Another Topic Map server is still running, maybe in a terminal you forgot. Close that terminal, or run `python -m topicmap serve --port 8766` and open <http://127.0.0.1:8766/disk>.
 - **"Ollama isn't answering" or "connection refused."** Open the Ollama app, then try again.
 - **"Model not found."** Run `ollama pull qwen3:14b` (or whichever model the prompt names).
 - **Reading is very slow.** Close other heavy apps, switch to `qwen3:8b`, or just leave it overnight. It resumes where it stopped.
-- **Gemini export is HTML.** Export again from Takeout with the format set to JSON.
+- **"UnicodeEncodeError" or "'charmap' codec can't encode" on Windows.** The tool printed an emoji to a console that isn't UTF-8. Ask Claude Code to make the command line print UTF-8, or run `set PYTHONUTF8=1` (PowerShell: `$env:PYTHONUTF8=1`) first.
 - **Something looks wrong on the disk.** Tell Claude Code what you see, for example "one theme has swallowed half my topics", and ask it to fix the hierarchy step.
 
 ## License
