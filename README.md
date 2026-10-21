@@ -63,6 +63,8 @@ Claude Code will ask permission before running commands or creating files. That'
 1. **After reading 10 conversations**, it shows you sample ideas with your own quotes and estimates how long the full run will take. Look them over. If they read like you, say OK, and the full reading continues in the background while it builds the rest.
 2. **At the end**, it opens the map in your browser and gives you a short tour: your biggest topics, your deeper themes, and the most surprising connections.
 
+**Tip:** give Claude Code this repo's link too (<https://github.com/innercartography/topic-map>), so it can look at `reference/` if it gets stuck. It's your build, so change the prompt or ask Claude to do things differently whenever you like.
+
 ```text
 Build me a personal "Topic Map": a local tool that reads my AI chat exports and shows me the topics I keep
 circling, how they change over time, and the deeper themes underneath. The exports are the zip files in ./inbox
