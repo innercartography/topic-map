@@ -1,0 +1,7 @@
+# Your own exports and everything built from them stay on your machine.
+inbox/
+*.zip
+data/
+!reference/data/
+.env
+__pycache__/

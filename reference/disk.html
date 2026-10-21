@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Idea Disk</title>
+<style>
+:root{--bg:#05060b;--ink:#e9e6df;--ink2:#a8a6b3;--ink3:#6d6c7d;--glow:#f3d27a;--accent:#9db7ff;--teal:#7fd6c2;--violet:#c59bff;
+  --panel:rgba(22,26,40,.92);--line:#262b3d;--bg2:#121521;
+  --emoji:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,"Segoe UI",sans-serif;overflow:hidden}
+button,select,input{font:inherit;color:inherit}
+#bar{position:fixed;left:0;right:0;top:0;z-index:3;display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 16px;
+  background:linear-gradient(var(--bg) 60%,transparent)}
+#bar h1{font-size:16px;margin:0;font-weight:600;white-space:nowrap}#bar h1 span{color:var(--glow)}
+#bar a{color:var(--ink2);text-decoration:none;white-space:nowrap}
+.seg{display:inline-flex;background:var(--bg2);border:1px solid var(--line);border-radius:999px;padding:2px;flex-wrap:wrap}
+.seg button{background:none;border:0;padding:3px 10px;border-radius:999px;color:var(--ink2);cursor:pointer;font-size:12px}
+.seg button.on{background:#1d2234;color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.seg button:disabled{opacity:.4;cursor:help}
+.lbl{color:var(--ink3);font-size:12px;display:inline-flex;gap:6px;align-items:center}
+input[type=search]{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:4px 9px;font-size:13px;width:200px}
+#kinds{display:flex;gap:6px;flex-wrap:wrap}
+#kinds label{font-size:12px;color:var(--ink2);display:inline-flex;gap:4px;align-items:center;cursor:pointer;
+  border:1px solid var(--line);border-radius:999px;padding:1px 8px;background:var(--bg2)}
+#kinds i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle}
+#kinds input{margin:0;accent-color:var(--glow)}
+canvas{display:block;cursor:grab}
+#rim{position:fixed;inset:0;pointer-events:none;z-index:1}canvas.drag{cursor:grabbing}canvas.hand{cursor:pointer}
+#crumbs{position:fixed;left:16px;bottom:12px;z-index:3;color:var(--ink3);font-size:12px;max-width:calc(100% - 32px)}
+#crumbs a{color:var(--ink2);cursor:pointer;text-decoration:none}#crumbs a:hover{color:var(--ink)}
+#tip{position:fixed;z-index:4;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;display:none;max-width:320px}
+#tip b{color:var(--ink)}#tip span{color:var(--ink3)}
+#info{position:fixed;right:16px;top:64px;bottom:44px;width:min(380px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:16px 18px;display:none;z-index:3;overflow:auto;backdrop-filter:blur(6px)}
+#info .x{position:absolute;right:10px;top:6px;background:none;border:0;color:var(--ink2);font-size:22px;cursor:pointer}
+#info .em{font-family:var(--emoji);font-size:44px;line-height:1}
+#info h2{margin:6px 0 2px;font-size:18px}
+#info p{color:var(--ink2);margin:6px 0}
+#info h3{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin:16px 0 6px;font-weight:600}
+#info .meta{color:var(--ink3);font-size:12px}
+#info .open{display:inline-block;margin-top:8px;color:var(--glow);text-decoration:none}
+#info .q{font-style:italic;color:var(--ink2)}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:1px 8px;font-size:12px;color:var(--ink2);background:var(--bg2);cursor:pointer}
+.chip:hover{color:var(--ink)}
+.rel{display:grid;grid-template-columns:26px 1fr;gap:6px;padding:5px 0;border-top:1px solid var(--line);cursor:pointer;text-decoration:none;color:inherit}
+.rel:hover{background:#1d2234}.rel .e{font-family:var(--emoji);font-size:18px;text-align:center}.rel small{color:var(--ink3);display:block}
+.k-unexpected{color:var(--glow)}.k-lexicon{color:var(--teal)}.k-cooccur{color:var(--accent)}.k-also{color:var(--violet)}
+.pt{margin:5px 0;font-size:13px;color:var(--ink2)}
+.spark{width:100%;height:40px;display:block;margin-top:6px}
+#hint{position:fixed;right:16px;bottom:12px;color:var(--ink3);font-size:12px;z-index:2;text-align:right}
+@media (max-width:700px){#bar{gap:8px;padding:8px 12px}input[type=search]{width:140px}#hint{display:none}#info{top:auto;height:55%}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+</head>
+<body>
+<div id="bar">
+  <h1><span>✶</span> Idea disk</h1>
+  <a href="/" id="home">← map</a>
+  <span class="lbl">Lens <span class="seg" id="lens"></span></span>
+  <span class="lbl">Window <span class="seg" id="win"><button data-w="all" class="on">All time</button><button data-w="12">12 wks</button><button data-w="4">4 wks</button></span></span>
+  <span class="lbl">Links <span id="kinds"></span></span>
+  <input type="search" id="q" placeholder="Find a topic, label or term…" list="names">
+  <datalist id="names"></datalist>
+</div>
+<canvas id="c"></canvas>
+<div id="rim"></div>
+<div id="tip"></div>
+<div id="info"><button class="x" title="close">×</button><div id="info-body"></div></div>
+<div id="crumbs"></div>
+<div id="hint">click to bring anything to the centre · drag to slide the disk · scroll to zoom · Esc = back to you</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// ---------- complex numbers & Möbius maps of the unit disk ----------
+// A Möbius map is a 2×2 complex matrix [a,b,c,d]: z ↦ (az+b)/(cz+d). T(p) = (z−p)/(1−p̄z) sends p to the centre.
+const cmul = (a,b) => [a[0]*b[0]-a[1]*b[1], a[0]*b[1]+a[1]*b[0]];
+const cadd = (a,b) => [a[0]+b[0], a[1]+b[1]];
+const cdiv = (a,b) => { const d = b[0]*b[0]+b[1]*b[1] || 1e-12; return [(a[0]*b[0]+a[1]*b[1])/d, (a[1]*b[0]-a[0]*b[1])/d]; };
+const polar = (r,t) => [r*Math.cos(t), r*Math.sin(t)];
+const abs2 = z => z[0]*z[0]+z[1]*z[1];
+const arg = z => Math.atan2(z[1], z[0]);
+const ONE = [1,0];
+const apply = (m,z) => cdiv(cadd(cmul(m[0],z), m[1]), cadd(cmul(m[2],z), m[3]));
+const compose = (m,n) => [cadd(cmul(m[0],n[0]), cmul(m[1],n[2])), cadd(cmul(m[0],n[1]), cmul(m[1],n[3])),
+                          cadd(cmul(m[2],n[0]), cmul(m[3],n[2])), cadd(cmul(m[2],n[1]), cmul(m[3],n[3]))];
+const toCentre = p => [ONE, [-p[0],-p[1]], [-p[0],p[1]], ONE];        // p ↦ 0
+const fromCentre = p => [ONE, [p[0],p[1]], [p[0],-p[1]], ONE];        // 0 ↦ p
+const IDENT = [ONE,[0,0],[0,0],ONE];
+function normalize(m){  // keep the matrix from drifting in scale
+  const det = cadd(cmul(m[0],m[3]), cmul([-m[1][0],-m[1][1]], m[2]));
+  const r = Math.sqrt(Math.hypot(det[0],det[1])) || 1;
+  return m.map(z => [z[0]/r, z[1]/r]);
+}
+
+// ---------- state ----------
+const S = {lens: null, win: "all", focus: "you", hover: null, view: IDENT, zoom: 1,
+  kinds: {tree:true, also:true, unexpected:true, lexicon:true, cooccur:true}};
+const KINDS = [["tree","tree","#3a4060"],["also","also under","#c59bff"],["unexpected","unexpected","#f3d27a"],
+               ["lexicon","lexicon","#7fd6c2"],["cooccur","co-occur","#9db7ff"]];
+let H, N = {}, kids = {}, parentOf = {}, linksOf = {}, topCo = {}, pos = {}, shown = {}, winWeeks = null, winStart = null;
+
+const canvas = $("#c"), ctx = canvas.getContext("2d");
+let W = 0, Ht = 0, R = 0, CX = 0, CY = 0, DPR = 1;
+function resize(){
+  DPR = devicePixelRatio || 1; W = innerWidth; Ht = innerHeight;
+  canvas.width = W*DPR; canvas.height = Ht*DPR; canvas.style.width = W+"px"; canvas.style.height = Ht+"px";
+  const panel = $("#info").style.display === "block" && W > 900 ? 380 : 0;
+  CX = (W - panel)/2; CY = Ht/2 + 18; R = Math.max(60, Math.min((W - panel)/2 - 20, Ht/2 - 50)) * S.zoom;
+  $("#rim").style.background = `radial-gradient(circle at ${CX}px ${CY}px, transparent ${R - .5}px, #262b3d ${R}px, #05060b ${R + 1.5}px)`;
+  draw();
+}
+
+// ---------- data ----------
+function isoWeekStart(w){ const [y, n] = w.split("-W").map(Number); const d = new Date(Date.UTC(y,0,4));
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay()+6)%7) + (n-1)*7); return d.toISOString().slice(0,10); }
+function countIn(n){
+  if(!winWeeks) return n.count ?? 1;
+  if(n.kind === "topic" || n.kind === "label"){ let c = 0; for(const w in n.weeks) if(winWeeks.has(w)) c += n.weeks[w]; return c; }
+  if(n.kind === "idea") return winWeeks.has(n.week) ? 1 : 0;
+  if(n.kind === "term") return n.last >= winStart ? n.count : 0;
+  return 1;
+}
+function active(id){
+  const n = N[id]; if(!winWeeks || n.kind === "root" || n.kind === "group") return true;
+  return countIn(n) > 0;
+}
+
+function buildTree(){
+  const L = H.lenses.find(l => l.name === S.lens) || H.lenses[0];
+  kids = {}; parentOf = {};
+  const add = (c,p) => { parentOf[c] = p; (kids[p] ||= []).push(c); };
+  for(const g of L.groups) if(N[g]) add(g, "you");
+  for(const n of H.nodes){
+    if(n.kind === "topic") add(n.id, L.parent[n.id] || L.groups[0]);
+    else if(n.parent && N[n.parent]) add(n.id, n.parent);
+  }
+  // links: cross-links + this lens's extra memberships
+  linksOf = {};
+  const put = l => { (linksOf[l.a] ||= []).push(l); (linksOf[l.b] ||= []).push(l); };
+  H.links.forEach(put);
+  L.also.forEach(([t,g]) => put({a:t, b:g, kind:"also", why:`also under ${N[g]?.name}`}));
+  topCo = {};   // each node's 10 strongest co-occurrence links — the ones drawn when you look at it
+  for(const id in linksOf) topCo[id] = new Set(linksOf[id].filter(l => l.kind === "cooccur").sort((a,b) => b.w - a.w).slice(0, 10));
+  S.lensObj = L;
+}
+
+// ---------- weights, sizes and the hyperbolic layout ----------
+const sizeOf = {};       // node → 0..1 within its kind (window-aware)
+function computeSizes(){
+  const max = {};
+  for(const n of H.nodes){
+    let v;
+    if(n.kind === "topic") v = Math.sqrt(countIn(n) * (n.span + 30));           // ideas × span
+    else if(n.kind === "label") v = Math.sqrt(countIn(n));
+    else if(n.kind === "term") v = Math.sqrt(countIn(n));
+    else v = 1;
+    sizeOf[n.id] = v; max[n.kind] = Math.max(max[n.kind] || 0, v);
+  }
+  for(const n of H.nodes) sizeOf[n.id] = max[n.kind] ? sizeOf[n.id] / max[n.kind] : 0;
+}
+const weight = {};
+function computeWeights(id){
+  const n = N[id], s = sizeOf[id];
+  const base = {root:0, group:0, topic: 1 + 2.5*s, label: .8 + .6*s, idea: .45, term: .55 + .4*s}[n.kind] ?? 1;
+  let w = base * (active(id) ? 1 : .35);
+  for(const k of kids[id] || []) w += .45 * computeWeights(k);
+  return weight[id] = w;
+}
+function distTo(id){   // hyperbolic distance from a node's parent
+  const n = N[id], s = sizeOf[id];
+  return {group: .55, topic: 1.6 - .9*s, label: 1.35, term: 1.5, idea: .85}[n.kind] ?? 1;
+}
+function hsize(id){    // radius in hyperbolic units; shrinks on screen toward the rim by (1−|z|²)/2
+  const n = N[id], s = sizeOf[id];
+  return {root:.12, group:.09, topic: .05 + .13*s, label: .05 + .04*s, idea: .03, term: .05 + .04*s}[n.kind] ?? .1;
+}
+const hdist = (a,b) => 2*Math.atanh(Math.min(.999999, Math.sqrt(abs2([a[0]-b[0], a[1]-b[1]]) / abs2(cadd(ONE, cmul([-a[0], a[1]], b))))));
+function layout(){
+  computeSizes(); computeWeights("you");
+  const out = {you: [0,0]};
+  // below the topics: a hyperbolic tree — each child gets a slice of its parent's wedge, seen from the parent
+  function place(id, z, a0, a1){
+    const ks = (kids[id] || []).slice();
+    if(!ks.length) return;
+    ks.sort((a,b) => weight[b]-weight[a]);   // largest in the middle of the wedge
+    const order = []; ks.forEach((k,i) => i % 2 ? order.push(k) : order.unshift(k));
+    const total = order.reduce((s,k) => s + weight[k], 0) || 1;
+    const back = fromCentre(z);
+    let cur = a0;
+    for(const k of order){
+      const span = (a1 - a0) * weight[k] / total, mid = cur + span/2;
+      // far enough out that the arc it gets is wide enough for it: sinh(d)·span ≥ its hyperbolic diameter
+      const d = Math.min(3.6, Math.max(distTo(k), Math.asinh((3.4*hsize(k) + .08) / Math.max(span, 1e-3))));
+      const zk = apply(back, polar(Math.tanh(d/2), mid));
+      out[k] = zk;
+      // the child's own wedge: the same ideal arc, seen from the child (it widens, so the periphery opens up)
+      const T = toCentre(zk);
+      const e0 = apply(T, apply(back, polar(1, cur + span*.03))), e1 = apply(T, apply(back, polar(1, cur + span*.97)));
+      let b0 = arg(e0), b1 = arg(e1); while(b1 <= b0) b1 += 2*Math.PI;
+      const maxW = 1.7*Math.PI;
+      if(b1 - b0 > maxW){ const c = (b0+b1)/2; b0 = c - maxW/2; b1 = c + maxW/2; }
+      place(k, zk, b0, b1);
+      cur += span;
+    }
+  }
+  // the top: each group (invariant / cluster / parent idea) gets a sector around you; its topics are packed into
+  // that sector biggest first, each taking the free spot nearest the centre — so the big ones hold the middle
+  const groups = (kids.you || []).slice().sort((a,b) => weight[b]-weight[a]);
+  const gorder = []; groups.forEach((g,i) => i % 2 ? gorder.push(g) : gorder.unshift(g));
+  const gtotal = gorder.reduce((s,g) => s + weight[g], 0) || 1;
+  let cur = -Math.PI/2;
+  const placed = [];   // [id, z, hyperbolic radius]
+  for(const g of gorder){
+    const span = 2*Math.PI * weight[g] / gtotal, mid = cur + span/2;
+    out[g] = polar(Math.tanh(distTo(g)/2), mid);
+    const ts = (kids[g] || []).slice().sort((a,b) => sizeOf[b] - sizeOf[a] || weight[b] - weight[a]);
+    const lo = cur + span*.04, hi = cur + span*.96, steps = Math.max(6, Math.min(40, Math.round(span*14)));
+    const angles = d3.range(steps + 1).map(i => lo + (hi - lo)*i/steps).sort((a,b) => Math.abs(a-mid) - Math.abs(b-mid));
+    for(const t of ts){
+      const rt = 2.3*hsize(t) + .05;
+      let spot = null;
+      for(let r = 1.05 - .35*sizeOf[t]; r < 4.2 && !spot; r += .1){
+        const e = Math.tanh(r/2);
+        for(const a of angles){
+          const z = polar(e, a);
+          if(placed.every(([, q, rq]) => hdist(z, q) > rt + rq) && hdist(z, out[g]) > rt + .12){ spot = z; break; }
+        }
+      }
+      spot ||= polar(Math.tanh(2.1), mid);
+      out[t] = spot; placed.push([t, spot, rt]);
+    }
+    cur += span;
+  }
+  for(const g of gorder) for(const t of kids[g] || []){
+    const away = arg(apply(toCentre(out[t]), [0,0])) + Math.PI;   // facing away from you
+    place(t, out[t], away - .8*Math.PI, away + .8*Math.PI);
+  }
+  return out;
+}
+
+// ---------- tweening between layouts / views ----------
+let anim = null;
+function relayout(){
+  const prev = {}; for(const id in pos) prev[id] = apply(S.view, pos[id]);
+  const next = layout();
+  // keep the focused node where it is on screen across a layout change
+  if(S.focus && next[S.focus]) S.view = compose(toCentre(next[S.focus]), IDENT), S.view = normalize(S.view);
+  const target = {}; for(const id in next) target[id] = apply(S.view, next[id]);
+  pos = next;
+  const from = {}; for(const id in target) from[id] = prev[id] || target[id];
+  run(500, t => { for(const id in target){ const a = from[id], b = target[id];
+    shown[id] = [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t]; } }, () => project());
+}
+function project(){ shown = {}; for(const id in pos) shown[id] = apply(S.view, pos[id]); draw(); }
+function run(ms, step, done){
+  if(anim){ anim.stop(); anim = null; }
+  if(!ms || document.hidden){ step(1); draw(); done && done(); return; }   // no frames in a hidden tab: jump to the end
+  anim = d3.timer(el => { const t = d3.easeCubicInOut(Math.min(1, el/ms)); step(t); draw();
+    if(el >= ms){ anim.stop(); anim = null; done && done(); } });
+}
+function centreOn(id, ms = 750){
+  if(!pos[id]) return;
+  S.focus = id; showInfo(id); crumbs(); setHash(id);
+  const start = S.view, p = apply(start, pos[id]), r = Math.sqrt(abs2(p));
+  if(r < 1e-6){ project(); return; }
+  const dH = 2*Math.atanh(Math.min(r, .999999)), u = [p[0]/r, p[1]/r];
+  run(ms, t => {   // glide along the geodesic at even hyperbolic speed
+    const a = polar(Math.tanh(dH*t/2), arg(u));
+    S.view = normalize(compose(toCentre(a), start)); project();
+  }, () => { S.view = normalize(compose(toCentre(p), start)); project(); });
+}
+
+// ---------- drawing ----------
+const COL = {root:"#f3d27a", group:"#9db7ff", topic:"#e9e6df", label:"#a8a6b3", idea:"#6d6c7d", term:"#7fd6c2"};
+const LINKC = Object.fromEntries(KINDS.map(k => [k[0], k[2]]));
+const px = z => [CX + z[0]*R, CY + z[1]*R];
+const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+let RP = {};   // on-screen radius per node, refreshed each frame
+const SPRITES = {};   // each emoji rasterised once, then scaled with drawImage (colour-emoji text is slow to draw)
+function sprite(e){
+  if(SPRITES[e]) return SPRITES[e];
+  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const g = c.getContext("2d"); g.font = `76px ${EMOJI_FONT}`; g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(e, 48, 52);
+  return SPRITES[e] = c;
+}
+function radiusPx(id){ if(id in RP) return RP[id]; const z = shown[id]; if(!z) return 0; return RP[id] = R * hsize(id) * (1 - abs2(z)); }
+
+function geodesic(p, q){  // adds the arc of the circle through p and q that meets the rim at right angles
+  const [x1,y1] = p, [x2,y2] = q, det = x1*y2 - y1*x2;
+  const P = px(p), Q = px(q);
+  ctx.moveTo(...P);
+  if(Math.abs(det) < 1e-4){ ctx.lineTo(...Q); return; }
+  const k1 = (abs2(p)+1)/2, k2 = (abs2(q)+1)/2;
+  const cx = (k1*y2 - k2*y1)/det, cy = (x1*k2 - x2*k1)/det;
+  const r = Math.sqrt(Math.max(0, cx*cx + cy*cy - 1));
+  if(r*R > 1e5){ ctx.lineTo(...Q); return; }
+  const a1 = Math.atan2(y1-cy, x1-cx), a2 = Math.atan2(y2-cy, x2-cx);
+  let d = a2 - a1; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI;
+  ctx.arc(CX + cx*R, CY + cy*R, r*R, a1, a2, d < 0);
+}
+
+function inFocus(){ // the focused node, its path to you, and its children
+  const set = new Set(); let n = S.focus;
+  while(n){ set.add(n); n = parentOf[n]; }
+  for(const k of kids[S.focus] || []) set.add(k);
+  return set;
+}
+function related(){ // what stays bright while something is focused: its path, two levels below, and what it links to
+  if(S.focus === "you") return null;
+  const set = inFocus();
+  for(const k of kids[S.focus] || []) for(const g of kids[k] || []) set.add(g);
+  for(const l of linksOf[S.focus] || []) if(S.kinds[l.kind]){ set.add(l.a); set.add(l.b); }
+  return set;
+}
+
+function draw(){
+  if(!H) return;
+  RP = {};
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,W,Ht);
+  // the disk
+  const g = ctx.createRadialGradient(CX,CY,R*.05,CX,CY,R);
+  g.addColorStop(0,"#121628"); g.addColorStop(.75,"#0a0c16"); g.addColorStop(1,"#070810");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(CX,CY,R,0,2*Math.PI); ctx.fill();
+  ctx.strokeStyle = "#262b3d"; ctx.lineWidth = 1; ctx.stroke();
+
+  const hot = S.hover || S.focus, path = inFocus(), rel = related();
+  const lit = id => !rel || rel.has(id) || id === S.hover;
+  // edges are batched by style: one path and one stroke() per bucket keeps a frame cheap
+  const buckets = new Map();
+  const bucket = (key, style) => { let b = buckets.get(key); if(!b){ b = {style, segs: []}; buckets.set(key, b); } return b.segs; };
+  if(S.kinds.tree){
+    for(const id in parentOf){
+      const p = parentOf[id], a = shown[id], b = shown[p];
+      if(!a || !b) continue;
+      const ra = radiusPx(id); if(ra < 1.5 && !path.has(id)) continue;
+      if(path.has(id) && path.has(p)) bucket("tree-on", {color:"#f3d27a", alpha:.45, width:1}).push([a,b]);
+      else { const q = Math.min(4, Math.ceil(ra/4)); bucket("tree" + q, {color:"#464e6e", alpha: Math.min(.45, q*.11), width:1}).push([a,b]); }
+    }
+  }
+  // cross-links
+  const drawn = new Set();
+  for(const id in linksOf){
+    for(const l of linksOf[id]){
+      if(!S.kinds[l.kind] || drawn.has(l)) continue; drawn.add(l);
+      const a = shown[l.a], b = shown[l.b]; if(!a || !b) continue;
+      const ra = radiusPx(l.a), rb = radiusPx(l.b);
+      const touch = (l.a === hot || l.b === hot) && (l.kind !== "cooccur" || topCo[hot]?.has(l));
+      if(!touch){
+        if(Math.min(ra, rb) < (l.kind === "unexpected" ? 3 : 1.5)) continue;
+        if(l.kind === "cooccur" && (l.w < 18 || Math.min(ra, rb) < 6)) continue;     // only the strong ones unless you're looking
+        if(l.kind === "lexicon" && Math.min(ra, rb) < 7) continue;
+      }
+      bucket(l.kind + (touch ? "!" : ""), {color: LINKC[l.kind], alpha: touch ? .9 : ({unexpected:.32, also:.35, lexicon:.14, cooccur:.09}[l.kind]),
+        width: touch ? 1.6 : (l.kind === "unexpected" ? 1.3 : 1), dash: l.kind === "unexpected" ? [5,4] : l.kind === "also" ? [2,3] : []}).push([a,b]);
+    }
+  }
+  for(const {style, segs} of buckets.values()){
+    ctx.strokeStyle = style.color; ctx.globalAlpha = style.alpha; ctx.lineWidth = style.width; ctx.setLineDash(style.dash || []);
+    ctx.beginPath(); for(const [a,b] of segs) geodesic(a,b); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+
+  // nodes, largest last so they sit on top; labels placed greedily without overlaps
+  const ids = Object.keys(shown).filter(id => radiusPx(id) >= .6).sort((a,b) => radiusPx(a) - radiusPx(b));
+  const isDot = n => n.kind === "idea" || n.kind === "label" || (!n.emoji && n.kind !== "root");
+  const dots = new Map();   // small dots, batched by colour and brightness
+  for(const id of ids){
+    const n = N[id]; if(!isDot(n)) continue;
+    const key = n.kind + "|" + (active(id) ? 1 : .22) * (lit(id) ? 1 : .4);
+    (dots.get(key) || dots.set(key, []).get(key)).push(id);
+  }
+  for(const [key, list] of dots){
+    const [kind, alpha] = key.split("|"); ctx.fillStyle = COL[kind]; ctx.globalAlpha = +alpha; ctx.beginPath();
+    for(const id of list){ const [x,y] = px(shown[id]), r = Math.max(.8, radiusPx(id)*(kind === "idea" ? .3 : .4)); ctx.moveTo(x + r, y); ctx.arc(x,y,r,0,2*Math.PI); }
+    ctx.fill();
+  }
+  for(const id of ids){
+    const n = N[id], r = radiusPx(id), [x,y] = px(shown[id]), act = active(id);
+    ctx.globalAlpha = (act ? 1 : .22) * (lit(id) ? 1 : .4);
+    if(isDot(n)){ /* drawn above */ } else {
+      ctx.fillStyle = n.kind === "group" ? "rgba(157,183,255,.10)" : "rgba(233,230,223,.05)";
+      ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI); ctx.fill();
+      if(n.invariant || n.kind === "root"){ ctx.strokeStyle = "rgba(243,210,122,.6)"; ctx.lineWidth = Math.max(1, r/14); ctx.stroke(); }
+      else if(n.kind === "group"){ ctx.strokeStyle = "rgba(157,183,255,.45)"; ctx.lineWidth = 1; ctx.stroke(); }
+      if(r > 3) ctx.drawImage(sprite(n.emoji), x - r*.68, y - r*.68, r*1.36, r*1.36);
+    }
+    if(id === S.focus || id === S.hover){ ctx.strokeStyle = id === S.focus ? "#f3d27a" : "#e9e6df"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x,y,Math.max(r, 4)+3,0,2*Math.PI); ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1;
+  // names
+  const boxes = [];
+  const free = b => !boxes.some(o => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+  const rank = id => id === S.focus || id === S.hover ? 0 : rel && rel.has(id) ? 1 : 2;
+  const byPriority = ids.slice().reverse().sort((a,b) => rank(a) - rank(b));   // stable: biggest first within a rank
+  for(const id of byPriority){
+    const n = N[id], r = radiusPx(id);
+    const must = id === S.focus || id === S.hover;
+    const near = path.has(id) || path.has(parentOf[id]) || parentOf[id] === S.hover;   // children of what you're looking at
+    const min = {root:0, group:6, topic:7, term: near ? 5 : 11, label: near ? 5 : 11, idea: near ? 7 : 16}[n.kind];
+    if(!must && r < min) continue;
+    const fs = Math.round(Math.max(10, Math.min(n.kind === "idea" ? 12 : 16, 7 + r*.32)));
+    let text = n.name; if(n.kind === "idea") text = text.length > 70 ? text.slice(0,68) + "…" : text;
+    else if(text.length > 34) text = text.slice(0,32) + "…";
+    ctx.font = `${n.kind === "group" || n.kind === "root" ? 600 : 400} ${fs}px ui-sans-serif,system-ui,"Segoe UI",sans-serif`;
+    const tw = ctx.measureText(text).width, [x,y] = px(shown[id]);
+    const dotted = n.kind === "idea" || n.kind === "label" || !n.emoji;
+    const ty = y + (dotted ? 0 : r + fs*.75), tx = dotted ? x + r*.45 + 4 + tw/2 : x;
+    const b = [tx - tw/2 - 2, ty - fs/2 - 1, tx + tw/2 + 2, ty + fs/2 + 1];
+    if(!must && !free(b)) continue;
+    boxes.push(b);
+    ctx.globalAlpha = (active(id) ? 1 : .35) * (lit(id) ? 1 : .45);
+    ctx.fillStyle = must ? "#fff" : n.kind === "group" ? "#c5d3ff" : n.kind === "idea" ? "#8c8a99" : n.invariant ? "#f6e3ae" : COL[n.kind];
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(text, tx, ty);
+  }
+  ctx.globalAlpha = 1;   // what spills past the rim is hidden by #rim, a CSS overlay (a canvas clip() costs ~10× a frame)
+}
+
+// ---------- interaction ----------
+function pick(mx, my){
+  let best = null, bd = Infinity;
+  for(const id in shown){
+    const r = radiusPx(id); if(r < 1.2) continue;
+    const [x,y] = px(shown[id]), d = Math.hypot(mx-x, my-y);
+    const reach = Math.max(r, 6);
+    if(d < reach && d/reach < bd){ bd = d/reach; best = id; }
+  }
+  return best;
+}
+const toDisk = (mx,my) => { let z = [(mx-CX)/R, (my-CY)/R]; const a = abs2(z); if(a > .97*.97){ const s = .97/Math.sqrt(a); z = [z[0]*s, z[1]*s]; } return z; };
+let drag = null;
+canvas.addEventListener("pointerdown", e => { drag = {x:e.clientX, y:e.clientY, z0: toDisk(e.clientX,e.clientY), view: S.view, moved:false};
+  canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener("pointermove", e => {
+  if(drag){
+    if(Math.hypot(e.clientX-drag.x, e.clientY-drag.y) > 4) drag.moved = true;
+    if(drag.moved){ canvas.classList.add("drag"); if(anim){ anim.stop(); anim = null; }
+      const z1 = toDisk(e.clientX, e.clientY);   // slide the disk: the point grabbed follows the pointer
+      S.view = normalize(compose(fromCentre(z1), compose(toCentre(drag.z0), drag.view))); project(); }
+    return;
+  }
+  const id = pick(e.clientX, e.clientY);
+  if(id !== S.hover){ S.hover = id; draw(); }
+  canvas.classList.toggle("hand", !!id);
+  tip(id, e.clientX, e.clientY);
+});
+canvas.addEventListener("pointerup", e => {
+  canvas.classList.remove("drag");
+  if(drag && !drag.moved){ const id = pick(e.clientX, e.clientY); if(id) centreOn(id); }
+  drag = null;
+});
+canvas.addEventListener("pointerleave", () => { S.hover = null; $("#tip").style.display = "none"; draw(); });
+canvas.addEventListener("wheel", e => { e.preventDefault(); S.zoom = Math.max(.6, Math.min(2.5, S.zoom * Math.exp(-e.deltaY/600))); resize(); }, {passive:false});
+addEventListener("resize", resize);
+addEventListener("keydown", e => {
+  if(e.target.tagName === "INPUT") return;
+  if(e.key === "Escape") centreOn("you");
+  if(e.key === "Backspace" && parentOf[S.focus]) centreOn(parentOf[S.focus]);
+});
+$("#info .x").onclick = () => { $("#info").style.display = "none"; resize(); };
+
+function stat(n){
+  const c = countIn(n), wn = winWeeks ? " in window" : "";
+  if(n.kind === "topic") return `${c} ideas${wn} · ${n.nthreads} conversations · ${n.first} → ${n.last} · back ${n.returns}×`;
+  if(n.kind === "label") return `${c} ideas${wn} · ${n.first} → ${n.last} · in ${N[n.parent]?.emoji} ${N[n.parent]?.name}`;
+  if(n.kind === "term") return `you said it ${n.count}× (AI ${n.ai}×) · ${n.nthreads} conversations · ${n.first} → ${n.last}`;
+  if(n.kind === "idea") return `${n.type} · ${n.time}`;
+  if(n.kind === "group") return `${(kids[n.id]||[]).length} topics`;
+  return n.essence || "";
+}
+function tip(id, x, y){
+  const t = $("#tip");
+  if(!id){ t.style.display = "none"; return; }
+  const n = N[id];
+  t.innerHTML = `<b>${esc(n.emoji || "")} ${esc(n.kind === "idea" ? n.name.slice(0,140) : n.name)}</b><br><span>${esc(stat(n))}</span>`;
+  t.style.display = "block";
+  t.style.left = Math.min(x + 14, innerWidth - t.offsetWidth - 8) + "px";
+  t.style.top = Math.min(y + 14, innerHeight - t.offsetHeight - 8) + "px";
+}
+
+function spark(n){
+  const weeks = H.range.weeks, w = 400, h = 40, bw = w/weeks.length;
+  const max = Math.max(1, ...Object.values(n.weeks || {}));
+  const start = winWeeks ? weeks.length - winWeeks.size : weeks.length;
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    ${winWeeks ? `<rect x="${start*bw}" y="0" width="${w - start*bw}" height="${h}" fill="rgba(243,210,122,.08)"/>` : ""}
+    ${weeks.map((wk,i) => { const c = n.weeks[wk]; if(!c) return "";
+      const bh = Math.max(2, h * c / max); return `<rect x="${i*bw}" y="${h-bh}" width="${Math.max(1,bw-.5)}" height="${bh}" fill="#9db7ff"/>`; }).join("")}</svg>`;
+}
+const nodeRow = (id, small) => { const n = N[id]; return `<div class="rel" data-go="${esc(id)}"><span class="e">${esc(n.emoji || "·")}</span>
+  <span>${esc(n.kind === "idea" ? n.name.slice(0,120) : n.name)}<small>${small ?? esc(stat(n))}</small></span></div>`; };
+const LINKED = H => H.generated !== "demo";   // the demo has no conversations or lexicon to open
+const threadRows = ids => (ids || []).map(t => { const m = H.threads[t]; if(!m) return "";
+  if(!LINKED(H)) return `<div class="rel"><span class="e">${esc(m.emoji || "💬")}</span><span>${esc(m.title)}<small>${esc(m.started)} · demo conversation</small></span></div>`;
+  return `<a class="rel" href="/#threads/${encodeURIComponent(t)}" target="_blank"><span class="e">${esc(m.emoji || "💬")}</span>
+  <span>${esc(m.title)}<small>${esc(m.started)} · open ↗</small></span></a>`; }).join("");
+
+function showInfo(id){
+  const n = N[id], box = $("#info-body");
+  let h = `<div class="em">${esc(n.emoji || (n.kind === "idea" ? "💡" : n.kind === "label" ? "🏷️" : ""))}</div>
+    <h2>${esc(n.kind === "idea" ? "" : n.name)}</h2><div class="meta">${esc({root:"the centre", group: S.lensObj.label, topic:"topic", label:"label (sub-topic)", idea:"one of your ideas", term:"lexicon term" + (n.termkind ? " · " + n.termkind : "")}[n.kind])}</div>`;
+  if(n.kind === "idea") h += `<p class="q">“${esc(n.name)}”</p><p class="meta">${esc(stat(n))}${n.verified === false ? " · quote not found in your messages" : ""}</p>
+    ${threadRows([n.thread])}`;
+  else {
+    if(n.question) h += `<p class="q">${esc(n.question)}</p>`;
+    if(n.essence) h += `<p>${esc(n.essence)}</p>`;
+    if(n.kind !== "root") h += `<p class="meta">${esc(stat(n))}${n.kind === "topic" ? ` · invariance ${n.invariance}${n.grade ? " · " + n.grade : ""}` : ""}</p>`;
+  }
+  if(n.weeks) h += spark(n);
+  if(n.kind === "term" && LINKED(H)) h += `<a class="open" href="/#lexicon/${encodeURIComponent(n.key)}" target="_blank">Open in the Lexicon ↗</a>`;
+  if(n.kind === "topic"){
+    const L = S.lensObj, home = L.parent[id], others = L.also.filter(a => a[0] === id).map(a => a[1]);
+    h += `<h3>Under</h3><div class="chips">${[home, ...others].map(g => `<span class="chip" data-go="${esc(g)}">${esc(N[g]?.emoji)} ${esc(N[g]?.name)}</span>`).join("")}</div>`
+      + (L.inferred.includes(id) ? `<p class="meta">filed here by shared conversations (this lens doesn't name it)</p>` : "");
+    if(n.samples?.length) h += `<h3>In your words</h3>` + n.samples.map(s => `<p class="pt">“${esc(s)}”</p>`).join("");
+  }
+  const ks = (kids[id] || []).slice().sort((a,b) => (N[b].count||0) - (N[a].count||0));
+  if(ks.length) h += `<h3>${n.kind === "topic" ? "Labels & terms" : n.kind === "label" ? "Ideas" : "Inside"} (${ks.length})</h3>` + ks.slice(0, 40).map(k => nodeRow(k)).join("");
+  const ls = (linksOf[id] || []).filter(l => l.kind !== "also" || n.kind !== "topic");
+  if(ls.length){
+    const rank = {unexpected:0, also:1, lexicon:2, cooccur:3};
+    ls.sort((a,b) => rank[a.kind] - rank[b.kind] || b.w - a.w);
+    h += `<h3>Connected (${ls.length})</h3>` + ls.slice(0, 30).map(l => { const o = l.a === id ? l.b : l.a;
+      return nodeRow(o, `<span class="k-${l.kind}">${l.kind === "cooccur" ? "co-occur" : l.kind}</span> · ${esc(l.why)}`); }).join("");
+  }
+  if(n.threads?.length) h += `<h3>Conversations</h3>` + threadRows(n.threads);
+  box.innerHTML = h;
+  const wasShown = $("#info").style.display === "block";
+  $("#info").style.display = "block";
+  if(!wasShown) resize();
+}
+$("#info").addEventListener("click", e => { const el = e.target.closest("[data-go]"); if(el) centreOn(el.dataset.go); });
+
+function crumbs(){
+  const path = []; let n = S.focus; while(n){ path.unshift(n); n = parentOf[n]; }
+  $("#crumbs").innerHTML = path.map(id => `<a data-go="${esc(id)}">${esc(((N[id].emoji || "") + " " + (N[id].kind === "idea" ? "idea" : N[id].name)).trim())}</a>`).join(" › ");
+}
+$("#crumbs").addEventListener("click", e => { const el = e.target.closest("[data-go]"); if(el) centreOn(el.dataset.go); });
+function setHash(id){ const h = "#" + encodeURIComponent(S.lens) + "/" + encodeURIComponent(id); if(location.hash !== h) history.replaceState(null, "", h); }
+
+function setWindow(w){
+  S.win = w;
+  if(w === "all"){ winWeeks = null; winStart = null; }
+  else { const ws = H.range.weeks.slice(-Number(w)); winWeeks = new Set(ws); winStart = isoWeekStart(ws[0]); }
+  document.querySelectorAll("#win button").forEach(b => b.classList.toggle("on", b.dataset.w === w));
+  relayout(); if($("#info").style.display === "block") showInfo(S.focus);
+}
+function setLens(name){
+  S.lens = name;
+  document.querySelectorAll("#lens button").forEach(b => b.classList.toggle("on", b.dataset.l === name));
+  buildTree();
+  if(!pos[S.focus] || !parentOf[S.focus] && S.focus !== "you") S.focus = "you";
+  if(N[S.focus]?.kind === "group" && N[S.focus].lens !== name) S.focus = "you";
+  relayout(); crumbs(); showInfo(S.focus); setHash(S.focus);
+}
+
+// ---------- start ----------
+(async () => {
+  H = await (await fetch("data/hierarchy.json")).json();   // relative, so it works from any folder or host
+  for(const n of H.nodes) N[n.id] = n;
+  if(!LINKED(H)) $("#home").hidden = true;
+  const lens = $("#lens");
+  const btn = (l, text) => `<button data-l="${esc(l.name)}" title="${esc(l.question || "")}">${esc(text)}</button>`;
+  const onto = H.lenses.filter(l => l.kind === "ontology");
+  lens.innerHTML = H.lenses.filter(l => l.kind !== "ontology").map(l => btn(l, (l.label || l.name).split(" (")[0])).join("")
+    + (onto.length ? onto.map(l => btn(l, onto.length > 1 ? "Parent ideas · " + l.name.slice(2) : "Parent ideas")).join("")
+       : `<button disabled title="No parent ideas yet — run: python -m topicmap ontology">Parent ideas</button>`);
+  lens.addEventListener("click", e => { const b = e.target.closest("button[data-l]"); if(b) setLens(b.dataset.l); });
+  $("#win").addEventListener("click", e => { const b = e.target.closest("button"); if(b) setWindow(b.dataset.w); });
+  $("#kinds").innerHTML = KINDS.map(([k, label, c]) => `<label><input type="checkbox" data-k="${k}" ${S.kinds[k] ? "checked" : ""}><i style="border-color:${c}${k==="unexpected"?";border-top-style:dashed":k==="also"?";border-top-style:dotted":""}"></i>${label}</label>`).join("");
+  $("#kinds").addEventListener("change", e => { S.kinds[e.target.dataset.k] = e.target.checked; draw(); });
+  $("#names").innerHTML = H.nodes.filter(n => n.kind !== "idea").map(n => `<option value="${esc(n.name)}">${esc(n.emoji || "")} ${esc(n.kind)}</option>`).join("");
+  $("#q").addEventListener("change", e => { const v = e.target.value.trim().toLowerCase(); if(!v) return;
+    const hit = H.nodes.find(n => n.kind !== "idea" && n.name.toLowerCase() === v && pos[n.id]) || H.nodes.find(n => n.name.toLowerCase().includes(v) && pos[n.id]);
+    if(hit) centreOn(hit.id); e.target.select(); });
+  const [hl, hid] = location.hash.slice(1).split("/").map(decodeURIComponent);
+  S.lens = H.lenses.some(l => l.name === hl) ? hl : H.lenses[0].name;
+  document.querySelectorAll("#lens button").forEach(b => b.classList.toggle("on", b.dataset.l === S.lens));
+  buildTree(); pos = layout(); project(); resize();
+  if(hid && N[hid] && pos[hid]) centreOn(hid, 0); else { crumbs(); }
+})();
+</script>
+</body>
+</html>
